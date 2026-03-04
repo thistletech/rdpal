@@ -19,7 +19,11 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// Print information about all archives in the ramdisk
-    Info,
+    Info {
+        /// Print file paths and sizes for each entry in each archive
+        #[arg(short, long)]
+        verbose: bool,
+    },
 
     /// Extract a single CPIO archive to a directory
     Extract {
@@ -71,12 +75,12 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Command::Info => {
+        Command::Info { verbose } => {
             let data = std::fs::read(&cli.file)
                 .with_context(|| format!("failed to read {}", cli.file.display()))?;
             let segments = segment::split_segments(&data)?;
             let file_str = cli.file.to_string_lossy();
-            info::print_info(&file_str, data.len(), &segments)?;
+            info::print_info(&file_str, data.len(), &segments, verbose)?;
         }
 
         Command::Extract { index, dest } => {

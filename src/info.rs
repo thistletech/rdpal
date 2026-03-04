@@ -5,7 +5,12 @@ use crate::cpio;
 use crate::segment::RawSegment;
 
 /// Print information about all segments in a ramdisk file.
-pub fn print_info(file_path: &str, file_size: usize, segments: &[RawSegment]) -> Result<()> {
+pub fn print_info(
+    file_path: &str,
+    file_size: usize,
+    segments: &[RawSegment],
+    verbose: bool,
+) -> Result<()> {
     println!(
         "Ramdisk: {file_path} ({} bytes, {} archive{})",
         file_size,
@@ -39,6 +44,36 @@ pub fn print_info(file_path: &str, file_size: usize, segments: &[RawSegment]) ->
             archive.entries.len(),
             first_entry,
         );
+
+        if verbose {
+            println!(
+                "         {:<6} {:>10}  {}",
+                "Type", "Size", "Path"
+            );
+            println!("         {}", "-".repeat(60));
+            for entry in &archive.entries {
+                let kind = if entry.is_dir() {
+                    "dir"
+                } else if entry.is_symlink() {
+                    "link"
+                } else {
+                    "file"
+                };
+                let name = if entry.is_symlink() {
+                    let target = String::from_utf8_lossy(&entry.data);
+                    format!("{} -> {}", entry.name, target)
+                } else {
+                    entry.name.clone()
+                };
+                println!(
+                    "         {:<6} {:>10}  {}",
+                    kind,
+                    entry.data.len(),
+                    name,
+                );
+            }
+            println!();
+        }
     }
 
     Ok(())
