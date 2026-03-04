@@ -53,6 +53,10 @@ enum Command {
         /// Output file path (defaults to overwriting the input file)
         #[arg(short, long)]
         output: Option<PathBuf>,
+
+        /// Root path prefix for entries in the archive (default: ".")
+        #[arg(long)]
+        root: Option<PathBuf>,
     },
 
     /// Add a new CPIO archive section to an existing initramfs file
@@ -72,6 +76,10 @@ enum Command {
         /// Output file path (defaults to overwriting the input file)
         #[arg(short, long)]
         output: Option<PathBuf>,
+
+        /// Root path prefix for entries in the archive (default: ".")
+        #[arg(long)]
+        root: Option<PathBuf>,
     },
 
     /// Create a new initramfs file from a directory
@@ -87,6 +95,10 @@ enum Command {
         /// Overwrite the output file if it already exists
         #[arg(short, long)]
         force: bool,
+
+        /// Root path prefix for entries in the archive (default: ".")
+        #[arg(long)]
+        root: Option<PathBuf>,
     },
 }
 
@@ -132,6 +144,7 @@ fn main() -> Result<()> {
             source,
             compression: comp_str,
             output,
+            root,
         } => {
             let data = std::fs::read(&cli.file)
                 .with_context(|| format!("failed to read {}", cli.file.display()))?;
@@ -146,7 +159,7 @@ fn main() -> Result<()> {
             }
 
             let comp: Compression = comp_str.parse()?;
-            let archive = update::build_archive_from_dir(&source)?;
+            let archive = update::build_archive_from_dir(&source, root.as_deref())?;
             let cpio_bytes = cpio::write_archive(&archive);
             let compressed = compression::compress(&cpio_bytes, comp)?;
 
@@ -168,6 +181,7 @@ fn main() -> Result<()> {
             compression: comp_str,
             index,
             output,
+            root,
         } => {
             let data = std::fs::read(&cli.file)
                 .with_context(|| format!("failed to read {}", cli.file.display()))?;
@@ -191,7 +205,7 @@ fn main() -> Result<()> {
             }
 
             let comp: Compression = comp_str.parse()?;
-            let archive = update::build_archive_from_dir(&source)?;
+            let archive = update::build_archive_from_dir(&source, root.as_deref())?;
             let cpio_bytes = cpio::write_archive(&archive);
             let compressed = compression::compress(&cpio_bytes, comp)?;
 
@@ -212,6 +226,7 @@ fn main() -> Result<()> {
             source,
             compression: comp_str,
             force,
+            root,
         } => {
             if !force && cli.file.exists() {
                 bail!(
@@ -221,7 +236,7 @@ fn main() -> Result<()> {
             }
 
             let comp: Compression = comp_str.parse()?;
-            let archive = update::build_archive_from_dir(&source)?;
+            let archive = update::build_archive_from_dir(&source, root.as_deref())?;
             let cpio_bytes = cpio::write_archive(&archive);
             let compressed = compression::compress(&cpio_bytes, comp)?;
 

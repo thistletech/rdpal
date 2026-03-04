@@ -7,7 +7,7 @@ use walkdir::WalkDir;
 use crate::cpio::{CpioArchive, CpioEntry};
 
 /// Build a CPIO archive from a directory tree.
-pub fn build_archive_from_dir(source: &Path) -> Result<CpioArchive> {
+pub fn build_archive_from_dir(source: &Path, root: Option<&Path>) -> Result<CpioArchive> {
     let mut entries = Vec::new();
     let mut ino: u32 = 0;
 
@@ -19,9 +19,15 @@ pub fn build_archive_from_dir(source: &Path) -> Result<CpioArchive> {
             .unwrap_or(path);
 
         let name = if rel_path == Path::new("") {
-            ".".to_string()
+            match root {
+                Some(r) => r.to_string_lossy().to_string(),
+                None => ".".to_string(),
+            }
         } else {
-            rel_path.to_string_lossy().to_string()
+            match root {
+                Some(r) => r.join(rel_path).to_string_lossy().to_string(),
+                None => rel_path.to_string_lossy().to_string(),
+            }
         };
 
         let meta = dir_entry
