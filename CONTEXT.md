@@ -21,16 +21,20 @@ Linux initramfs/ramdisk CLI tool + library. Parses concatenated CPIO archives (n
   - TrackingReader approach was tried and abandoned — decoders with internal BufReader (zstd) or chunked reads (flate2) read past the actual compressed boundary.
 - Reassembly pads between segments with nulls to 512-byte boundaries.
 
-## Unsupported CPIO Entry Types
-The following CPIO entry types are parsed but skipped (with a warning) during extract and build:
-- Block devices (`0o060000`) — requires `mknod` + root privileges
-- Character devices (`0o020000`) — requires `mknod` + root privileges
-- Sockets (`0o140000`) — cannot be created from archive data
-- FIFOs/named pipes (`0o010000`) — could be supported with `mkfifo` but currently skipped
+## CPIO Entry Type Support
+Supported on extract: directories (`0o040000`), regular files (`0o100000`), symlinks (`0o120000`), block devices (`0o060000`), character devices (`0o020000`).
 
-Supported types: directories (`0o040000`), regular files (`0o100000`), symlinks (`0o120000`).
+Device nodes require root or CAP_MKNOD — created via `libc::mknod`. Skipped with a warning when unprivileged.
 
-Mode handling: full 16-bit mode (file type + SUID/SGID/sticky + rwx) is preserved through parse/write. On extract, permissions (including special bits) are restored via `PermissionsExt::from_mode()` for dirs and files. Symlink permissions are not set (Linux ignores them).
+Unsupported (skipped with warning): sockets (`0o140000`), FIFOs/named pipes (`0o010000`).
+
+Build from directory (`build_archive_from_dir`): supports dirs, files, symlinks. Device nodes on disk are skipped by walkdir.
+
+## Privilege Detection
+`extract.rs` parses `/proc/self/status` for effective UID and CapEff bitmask. Checks CAP_CHOWN (bit 0) for ownership and CAP_MKNOD (bit 27) for device nodes. Prints `setpriv --ambient-caps` hint when missing.
+
+## Mode Handling
+Full 16-bit mode (file type + SUID/SGID/sticky + rwx) preserved through parse/write. On extract, permissions restored via `PermissionsExt::from_mode()` for dirs and files. Symlink permissions not set (Linux ignores them). Device node modes passed directly to `mknod`.
 
 ## Test Data
 - `test-data/boot-initrd` — 88MB, 4 archives: 3 uncompressed + 1 zstd-compressed.

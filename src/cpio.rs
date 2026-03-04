@@ -34,6 +34,14 @@ impl CpioEntry {
         (self.mode & 0o170000) == 0o120000
     }
 
+    pub fn is_block_device(&self) -> bool {
+        (self.mode & 0o170000) == 0o060000
+    }
+
+    pub fn is_char_device(&self) -> bool {
+        (self.mode & 0o170000) == 0o020000
+    }
+
     pub fn permissions(&self) -> u32 {
         self.mode & 0o7777
     }
