@@ -21,6 +21,17 @@ Linux initramfs/ramdisk CLI tool + library. Parses concatenated CPIO archives (n
   - TrackingReader approach was tried and abandoned — decoders with internal BufReader (zstd) or chunked reads (flate2) read past the actual compressed boundary.
 - Reassembly pads between segments with nulls to 512-byte boundaries.
 
+## Unsupported CPIO Entry Types
+The following CPIO entry types are parsed but skipped (with a warning) during extract and build:
+- Block devices (`0o060000`) — requires `mknod` + root privileges
+- Character devices (`0o020000`) — requires `mknod` + root privileges
+- Sockets (`0o140000`) — cannot be created from archive data
+- FIFOs/named pipes (`0o010000`) — could be supported with `mkfifo` but currently skipped
+
+Supported types: directories (`0o040000`), regular files (`0o100000`), symlinks (`0o120000`).
+
+Mode handling: full 16-bit mode (file type + SUID/SGID/sticky + rwx) is preserved through parse/write. On extract, permissions (including special bits) are restored via `PermissionsExt::from_mode()` for dirs and files. Symlink permissions are not set (Linux ignores them).
+
 ## Test Data
 - `test-data/boot-initrd` — 88MB, 4 archives: 3 uncompressed + 1 zstd-compressed.
 
