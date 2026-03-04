@@ -50,22 +50,40 @@ enum Command {
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
+
+    /// Create a new initramfs file from a directory
+    Create {
+        /// Source directory to build the CPIO archive from
+        #[arg(short, long)]
+        source: PathBuf,
+
+        /// Compression to apply (none, gzip, bzip2, zstd)
+        #[arg(short, long, default_value = "none")]
+        compression: String,
+
+        /// Overwrite the output file if it already exists
+        #[arg(short, long)]
+        force: bool,
+    },
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    let data = std::fs::read(&cli.file)
-        .with_context(|| format!("failed to read {}", cli.file.display()))?;
-    let segments = segment::split_segments(&data)?;
-
     match cli.command {
         Command::Info => {
+            let data = std::fs::read(&cli.file)
+                .with_context(|| format!("failed to read {}", cli.file.display()))?;
+            let segments = segment::split_segments(&data)?;
             let file_str = cli.file.to_string_lossy();
             info::print_info(&file_str, data.len(), &segments)?;
         }
 
         Command::Extract { index, dest } => {
+            let data = std::fs::read(&cli.file)
+                .with_context(|| format!("failed to read {}", cli.file.display()))?;
+            let segments = segment::split_segments(&data)?;
+
             if index >= segments.len() {
                 bail!(
                     "archive index {index} out of range (file has {} archive{})",
@@ -92,6 +110,10 @@ fn main() -> Result<()> {
             compression: comp_str,
             output,
         } => {
+            let data = std::fs::read(&cli.file)
+                .with_context(|| format!("failed to read {}", cli.file.display()))?;
+            let segments = segment::split_segments(&data)?;
+
             if index >= segments.len() {
                 bail!(
                     "archive index {index} out of range (file has {} archive{})",
@@ -115,6 +137,33 @@ fn main() -> Result<()> {
                 "Updated archive {index} ({} entries, {comp}) -> {}",
                 archive.entries.len(),
                 out_path.display()
+            );
+        }
+
+        Command::Create {
+            source,
+            compression: comp_str,
+            force,
+        } => {
+            if !force && cli.file.exists() {
+                bail!(
+                    "{} already exists (use --force to overwrite)",
+                    cli.file.display()
+                );
+            }
+
+            let comp: Compression = comp_str.parse()?;
+            let archive = update::build_archive_from_dir(&source)?;
+            let cpio_bytes = cpio::write_archive(&archive);
+            let compressed = compression::compress(&cpio_bytes, comp)?;
+
+            std::fs::write(&cli.file, &compressed)
+                .with_context(|| format!("failed to write {}", cli.file.display()))?;
+
+            println!(
+                "Created {} ({} entries, {comp})",
+                cli.file.display(),
+                archive.entries.len(),
             );
         }
     }

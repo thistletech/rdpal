@@ -10,7 +10,7 @@ Linux initramfs/ramdisk CLI tool + library. Parses concatenated CPIO archives (n
 - `src/extract.rs` — `extract_archive` writes dirs, files, symlinks to disk.
 - `src/update.rs` — `build_archive_from_dir` (walkdir), `reassemble` (replace segment + 512-byte null padding).
 - `src/info.rs` — `print_info` table output.
-- `src/main.rs` — clap CLI: `info`, `extract`, `update` subcommands.
+- `src/main.rs` — clap CLI: `info`, `extract`, `update`, `create` subcommands.
 
 ## Key Technical Decisions
 - CPIO parsing implemented from scratch (not using `cpio` crate) for full control over concatenated archive handling.

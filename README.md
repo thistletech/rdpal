@@ -12,6 +12,7 @@ This project was co-written in association with Opus 4.6.
 - Parses concatenated CPIO archives within a single initramfs file
 - Automatically detects compression per-segment: gzip, bzip2, zstd, or uncompressed
 - Extracts individual archives to disk (directories, files, symlinks)
+- Creates new initramfs files from a directory with optional compression
 - Rebuilds archives from a directory with optional compression
 - CPIO newc format implemented from scratch for full control over parsing and writing
 
@@ -54,6 +55,21 @@ Extracts the archive at the given 0-based index to the destination directory. Ha
 ```
 $ rdpal boot-initrd extract --index 0 --dest /tmp/archive0
 Extracted archive 0 (5 entries) to /tmp/archive0
+```
+
+### Create a new initramfs
+
+```
+rdpal <file> create --source <directory> [--compression <type>] [--force]
+```
+
+Creates a new initramfs file from the given source directory. Errors if the output file already exists unless `--force` is specified.
+
+Supported compression types: `none`, `gzip`, `bzip2`, `zstd`
+
+```
+$ rdpal new-initrd create --source /tmp/rootfs --compression zstd
+Created new-initrd (128 entries, zstd)
 ```
 
 ### Update a single archive
