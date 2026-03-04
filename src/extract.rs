@@ -144,6 +144,11 @@ pub fn extract_archive(archive: &CpioArchive, dest: &Path) -> Result<()> {
         );
     }
 
+    // Deferred directory chown: collect (path, uid, gid) and apply after all
+    // entries are extracted, deepest-first, so that chowning a parent to root
+    // doesn't prevent writing into it.
+    let mut dir_chowns: Vec<(std::path::PathBuf, u32, u32)> = Vec::new();
+
     for entry in &archive.entries {
         let target = dest.join(&entry.name);
 
@@ -153,7 +158,7 @@ pub fn extract_archive(archive: &CpioArchive, dest: &Path) -> Result<()> {
             std::fs::set_permissions(&target, std::fs::Permissions::from_mode(entry.permissions()))
                 .ok(); // best effort
             if chown_ok {
-                std::os::unix::fs::chown(&target, Some(entry.uid), Some(entry.gid)).ok();
+                dir_chowns.push((target, entry.uid, entry.gid));
             }
         } else if entry.is_symlink() {
             let link_target =
@@ -223,6 +228,13 @@ pub fn extract_archive(archive: &CpioArchive, dest: &Path) -> Result<()> {
                 entry.name
             );
         }
+    }
+
+    // Apply deferred directory chowns deepest-first so that parent directories
+    // remain writable while their children are being chowned.
+    dir_chowns.sort_by(|a, b| b.0.as_os_str().len().cmp(&a.0.as_os_str().len()));
+    for (path, uid, gid) in &dir_chowns {
+        std::os::unix::fs::chown(path, Some(*uid), Some(*gid)).ok();
     }
 
     Ok(())
