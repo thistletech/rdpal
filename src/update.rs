@@ -69,6 +69,31 @@ pub fn build_archive_from_dir(source: &Path) -> Result<CpioArchive> {
     Ok(CpioArchive { entries })
 }
 
+/// Insert a new segment into an initramfs file at the given index.
+/// Returns the new file contents.
+pub fn insert_segment(
+    segments: &[crate::segment::RawSegment],
+    index: usize,
+    new_segment_data: Vec<u8>,
+) -> Vec<u8> {
+    let mut pieces: Vec<&[u8]> = segments.iter().map(|s| s.data.as_slice()).collect();
+    pieces.insert(index, &new_segment_data);
+
+    let mut out = Vec::new();
+    for (i, piece) in pieces.iter().enumerate() {
+        out.extend_from_slice(piece);
+        // Pad with nulls to 512-byte boundary between segments
+        if i + 1 < pieces.len() {
+            let remainder = out.len() % 512;
+            if remainder != 0 {
+                out.resize(out.len() + (512 - remainder), 0);
+            }
+        }
+    }
+
+    out
+}
+
 /// Reassemble an initramfs file, replacing one segment.
 /// Returns the new file contents.
 pub fn reassemble(

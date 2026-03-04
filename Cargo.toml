@@ -1,6 +1,6 @@
 [package]
 name = "rdpal"
-version = "0.2.1"
+version = "0.3.0"
 description = "A tool to manipulate Linux initrd files"
 homepage = "https://thistle.tech"
 repository = "https://github.com/thistletech/rdpal"

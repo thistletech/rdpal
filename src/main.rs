@@ -55,6 +55,25 @@ enum Command {
         output: Option<PathBuf>,
     },
 
+    /// Add a new CPIO archive section to an existing initramfs file
+    Add {
+        /// Source directory to build the CPIO archive from
+        #[arg(short, long)]
+        source: PathBuf,
+
+        /// Compression to apply (none, gzip, bzip2, zstd)
+        #[arg(short, long, default_value = "none")]
+        compression: String,
+
+        /// Position to insert at (default: append to end)
+        #[arg(short, long)]
+        index: Option<usize>,
+
+        /// Output file path (defaults to overwriting the input file)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+
     /// Create a new initramfs file from a directory
     Create {
         /// Source directory to build the CPIO archive from
@@ -139,6 +158,51 @@ fn main() -> Result<()> {
 
             println!(
                 "Updated archive {index} ({} entries, {comp}) -> {}",
+                archive.entries.len(),
+                out_path.display()
+            );
+        }
+
+        Command::Add {
+            source,
+            compression: comp_str,
+            index,
+            output,
+        } => {
+            let data = std::fs::read(&cli.file)
+                .with_context(|| format!("failed to read {}", cli.file.display()))?;
+            let segments = segment::split_segments(&data)?;
+
+            let insert_at = index.unwrap_or(segments.len());
+
+            if insert_at > segments.len() {
+                bail!(
+                    "index {insert_at} out of range (file has {} archive{}, max insert index is {})",
+                    segments.len(),
+                    if segments.len() == 1 { "" } else { "s" },
+                    segments.len(),
+                );
+            }
+
+            if index.is_some() && insert_at == segments.len() {
+                eprintln!(
+                    "warning: index {insert_at} does not exist, appending to end"
+                );
+            }
+
+            let comp: Compression = comp_str.parse()?;
+            let archive = update::build_archive_from_dir(&source)?;
+            let cpio_bytes = cpio::write_archive(&archive);
+            let compressed = compression::compress(&cpio_bytes, comp)?;
+
+            let new_data = update::insert_segment(&segments, insert_at, compressed);
+
+            let out_path = output.unwrap_or_else(|| cli.file.clone());
+            std::fs::write(&out_path, &new_data)
+                .with_context(|| format!("failed to write {}", out_path.display()))?;
+
+            println!(
+                "Added archive at index {insert_at} ({} entries, {comp}) -> {}",
                 archive.entries.len(),
                 out_path.display()
             );
