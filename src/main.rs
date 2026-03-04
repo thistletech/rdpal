@@ -7,7 +7,7 @@ use rdpal::segment::Compression;
 use rdpal::{compression, cpio, extract, info, segment, update};
 
 #[derive(Parser)]
-#[command(name = "rdpal", about = "Linux initramfs/ramdisk inspection and manipulation tool", long_about = format!("Linux initramfs/ramdisk inspection and manipulation tool\nVersion: {}", env!("CARGO_PKG_VERSION")), disable_version_flag = true)]
+#[command(name = "rdpal", about = format!("Linux initramfs/ramdisk inspection and manipulation tool\nVersion: {}", env!("CARGO_PKG_VERSION")))]//, disable_version_flag = true)]
 struct Cli {
     /// Path to the initramfs/ramdisk file
     file: PathBuf,
