@@ -5,39 +5,53 @@ use anyhow::{Context, Result};
 
 use crate::cpio::CpioArchive;
 
-/// Parse /proc/self/status and return (effective_uid, effective_capabilities).
-fn proc_status() -> Option<(u32, u64)> {
+/// Parsed process status from /proc/self/status.
+struct ProcStatus {
+    real_uid: u32,
+    effective_uid: u32,
+    real_gid: u32,
+    cap_eff: u64,
+}
+
+/// Parse /proc/self/status for uid, gid, and effective capabilities.
+fn proc_status() -> Option<ProcStatus> {
     let status = std::fs::read_to_string("/proc/self/status").ok()?;
-    let mut euid = None;
+    let mut real_uid = None;
+    let mut effective_uid = None;
+    let mut real_gid = None;
     let mut cap_eff = None;
 
     for line in status.lines() {
         if let Some(rest) = line.strip_prefix("Uid:") {
-            euid = rest.split_whitespace().nth(1).and_then(|s| s.parse().ok());
+            let mut fields = rest.split_whitespace();
+            real_uid = fields.next().and_then(|s| s.parse().ok());
+            effective_uid = fields.next().and_then(|s| s.parse().ok());
+        }
+        if let Some(rest) = line.strip_prefix("Gid:") {
+            real_gid = rest.split_whitespace().next().and_then(|s| s.parse().ok());
         }
         if let Some(rest) = line.strip_prefix("CapEff:") {
             cap_eff = u64::from_str_radix(rest.trim(), 16).ok();
         }
     }
 
-    Some((euid?, cap_eff.unwrap_or(0)))
+    Some(ProcStatus {
+        real_uid: real_uid?,
+        effective_uid: effective_uid?,
+        real_gid: real_gid?,
+        cap_eff: cap_eff.unwrap_or(0),
+    })
 }
 
-/// Check if the current process can change file ownership.
-/// Returns true if running as effective UID 0 or has CAP_CHOWN (bit 0).
-fn can_chown() -> bool {
-    match proc_status() {
-        Some((euid, cap_eff)) => euid == 0 || (cap_eff & 1) != 0,
-        None => false,
+impl ProcStatus {
+    /// Whether the process can change file ownership (root or CAP_CHOWN, bit 0).
+    fn can_chown(&self) -> bool {
+        self.effective_uid == 0 || (self.cap_eff & 1) != 0
     }
-}
 
-/// Check if the current process can create device nodes.
-/// Returns true if running as effective UID 0 or has CAP_MKNOD (bit 27).
-fn can_mknod() -> bool {
-    match proc_status() {
-        Some((euid, cap_eff)) => euid == 0 || (cap_eff & (1 << 27)) != 0,
-        None => false,
+    /// Whether the process can create device nodes (root or CAP_MKNOD, bit 27).
+    fn can_mknod(&self) -> bool {
+        self.effective_uid == 0 || (self.cap_eff & (1 << 27)) != 0
     }
 }
 
@@ -68,13 +82,28 @@ fn create_special_node(
     }
 }
 
+/// Escape arguments for embedding in a shell command string.
+fn shell_escape_args(args: &[String]) -> String {
+    args.iter()
+        .map(|a| {
+            if a.contains(|c: char| c.is_whitespace() || "\"'\\$`!#&|;(){}".contains(c)) {
+                format!("'{}'", a.replace('\'', "'\\''"))
+            } else {
+                a.clone()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 /// Extract all entries from a CPIO archive to the given directory.
 pub fn extract_archive(archive: &CpioArchive, dest: &Path) -> Result<()> {
     std::fs::create_dir_all(dest)
         .with_context(|| format!("failed to create destination: {}", dest.display()))?;
 
-    let chown_ok = can_chown();
-    let mknod_ok = can_mknod();
+    let status = proc_status();
+    let chown_ok = status.as_ref().is_some_and(|s| s.can_chown());
+    let mknod_ok = status.as_ref().is_some_and(|s| s.can_mknod());
 
     let has_devices = archive
         .entries
@@ -92,8 +121,14 @@ pub fn extract_archive(archive: &CpioArchive, dest: &Path) -> Result<()> {
 
     if !missing_caps.is_empty() {
         let args: Vec<String> = std::env::args().collect();
-        let cmd = args.join(" ");
-        let caps = missing_caps.join(",+");
+        let cmd = shell_escape_args(&args);
+        let inh_caps = missing_caps.iter().map(|c| format!("+{c}")).collect::<Vec<_>>().join(",");
+        let amb_caps = &inh_caps;
+        let (uid, gid) = status
+            .as_ref()
+            .map(|s| (s.real_uid, s.real_gid))
+            .unwrap_or((1000, 1000));
+
         if !chown_ok {
             eprintln!(
                 "warning: not running as root and missing CAP_CHOWN; file ownership will not be preserved"
@@ -104,7 +139,9 @@ pub fn extract_archive(archive: &CpioArchive, dest: &Path) -> Result<()> {
                 "warning: not running as root and missing CAP_MKNOD; device nodes will be skipped"
             );
         }
-        eprintln!("hint: re-run with: setpriv --ambient-caps +{caps} -- {cmd}");
+        eprintln!(
+            "hint: re-run with: sudo -E setpriv --reuid={uid} --regid={gid} --init-groups --inh-caps {inh_caps} --ambient-caps {amb_caps} -- env PATH=\"$PATH\" bash -c \"{cmd}\""
+        );
     }
 
     for entry in &archive.entries {
