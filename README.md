@@ -1,4 +1,5 @@
 # rdpal
+![Crates.io Version](https://img.shields.io/crates/v/rdpal?link=https%3A%2F%2Fcrates.io%2Fcrates%2Frdpal)
 
 A CLI tool for inspecting and manipulating Linux initramfs/ramdisk files.
 

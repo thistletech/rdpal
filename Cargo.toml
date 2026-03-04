@@ -1,7 +1,14 @@
 [package]
 name = "rdpal"
 version = "0.1.0"
+description = "A tool to manipulate Linux initrd files"
+homepage = "https://thistle.tech"
+repository = "https://github.com/thistletech/rdpal"
+keywords = ["linux", "initrd", "cpio"]
+categories = ["command-line-utilities", "development-tools::build-utils", "filesystem"]
 edition = "2024"
+license = "MIT"
+readme = "README.md"
 
 [dependencies]
 anyhow = "1"
