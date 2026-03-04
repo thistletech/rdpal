@@ -41,8 +41,8 @@ fn can_mknod() -> bool {
     }
 }
 
-/// Create a device node at the given path.
-fn create_device_node(
+/// Create a special filesystem node (device, FIFO, or socket) at the given path.
+fn create_special_node(
     target: &Path,
     mode: u32,
     rdevmajor: u32,
@@ -144,10 +144,10 @@ pub fn extract_archive(archive: &CpioArchive, dest: &Path) -> Result<()> {
             }
         } else if entry.is_block_device() || entry.is_char_device() {
             if mknod_ok {
-                create_device_node(&target, entry.mode, entry.rdevmajor, entry.rdevminor)
+                create_special_node(&target, entry.mode, entry.rdevmajor, entry.rdevminor)
                     .with_context(|| {
                         format!(
-                            "failed to create device node: {} ({}:{}) ",
+                            "failed to create device node: {} ({}:{})",
                             target.display(),
                             entry.rdevmajor,
                             entry.rdevminor
@@ -164,6 +164,20 @@ pub fn extract_archive(archive: &CpioArchive, dest: &Path) -> Result<()> {
                     entry.rdevmajor,
                     entry.rdevminor
                 );
+            }
+        } else if entry.is_fifo() || entry.is_socket() {
+            create_special_node(&target, entry.mode, 0, 0)
+                .with_context(|| {
+                    format!(
+                        "failed to create {}: {}",
+                        if entry.is_fifo() { "FIFO" } else { "socket" },
+                        target.display()
+                    )
+                })?;
+            std::fs::set_permissions(&target, std::fs::Permissions::from_mode(entry.permissions()))
+                .ok(); // best effort — override umask
+            if chown_ok {
+                std::os::unix::fs::chown(&target, Some(entry.uid), Some(entry.gid)).ok();
             }
         } else {
             eprintln!(

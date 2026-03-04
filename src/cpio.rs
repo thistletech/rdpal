@@ -42,6 +42,14 @@ impl CpioEntry {
         (self.mode & 0o170000) == 0o020000
     }
 
+    pub fn is_fifo(&self) -> bool {
+        (self.mode & 0o170000) == 0o010000
+    }
+
+    pub fn is_socket(&self) -> bool {
+        (self.mode & 0o170000) == 0o140000
+    }
+
     pub fn permissions(&self) -> u32 {
         self.mode & 0o7777
     }

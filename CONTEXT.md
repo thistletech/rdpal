@@ -22,11 +22,9 @@ Linux initramfs/ramdisk CLI tool + library. Parses concatenated CPIO archives (n
 - Reassembly pads between segments with nulls to 512-byte boundaries.
 
 ## CPIO Entry Type Support
-Supported on extract: directories (`0o040000`), regular files (`0o100000`), symlinks (`0o120000`), block devices (`0o060000`), character devices (`0o020000`).
+All CPIO entry types supported on extract: directories (`0o040000`), regular files (`0o100000`), symlinks (`0o120000`), block devices (`0o060000`), character devices (`0o020000`), FIFOs (`0o010000`), sockets (`0o140000`).
 
-Device nodes require root or CAP_MKNOD — created via `libc::mknod`. Skipped with a warning when unprivileged.
-
-Unsupported (skipped with warning): sockets (`0o140000`), FIFOs/named pipes (`0o010000`).
+Device nodes require root or CAP_MKNOD — created via `libc::mknod`. Skipped with a warning when unprivileged. FIFOs and sockets are created via `mknod` and do not require special privileges.
 
 Build from directory (`build_archive_from_dir`): supports dirs, files, symlinks. Device nodes on disk are skipped by walkdir.
 
