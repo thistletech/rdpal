@@ -1,0 +1,12 @@
+[package]
+name = "rdpal"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1"
+bzip2 = "0.5"
+clap = { version = "4", features = ["derive"] }
+flate2 = "1"
+walkdir = "2"
+zstd = "0.13"
